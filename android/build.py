@@ -14,6 +14,8 @@ sys.stdout.reconfigure(encoding='utf-8',errors='replace')
 ROOT=Path(__file__).resolve().parent
 WORK=ROOT/'runtime'
 PROJECT=ROOT.parent
+# Single source of truth for the release name; keep AndroidManifest in step.
+VERSION='0.2.1'
 TOOLS=Path(os.environ.get('IR_ANDROID_LEGACY_TOOLS',PROJECT.parent/'agent_work'/'sony-a7r2-k80'/'tools'))
 JAVA=Path(os.environ.get('IR_ANDROID_JAVA',TOOLS/'jadx'/'jre'/'bin'/'java.exe'))
 NDK=Path(os.environ.get('IR_ANDROID_NDK',TOOLS/'android-ndk-r19c'))
@@ -51,7 +53,7 @@ def main():
     sys.path.insert(0,str(PROJECT))
     import raw_backend
     (assets/'sRGB.icc').write_bytes(raw_backend.srgb_icc())
-    notice='''红外 RAW 0.2.0 · 离线安卓测试版
+    notice='''红外 RAW @VERSION@ · 离线安卓测试版
 
 本应用在手机上使用 LibRaw 解码，不连接电脑，不申请网络权限。
 导入：系统文件选择器。导出：JPG，质量 95，内嵌 sRGB 色彩配置。
@@ -66,7 +68,7 @@ def main():
 JPEG 解码：libjpeg-turbo 3.2.0（IJG / BSD / zlib，详见许可文件）。
 应用源代码按 MIT 许可提供。构建源码与安装包一并提供。
 项目源码包内含对应第三方源码、完整许可证与重建脚本。
-'''
+'''.replace('@VERSION@',VERSION)
     (assets/'NOTICE.txt').write_text(notice,'utf-8')
     for name in ['LICENSE.LGPL','LICENSE.CDDL','COPYRIGHT']:
         src=ROOT/'vendor'/'LibRaw-0.22.3'/name
@@ -89,9 +91,17 @@ JPEG 解码：libjpeg-turbo 3.2.0（IJG / BSD / zlib，详见许可文件）。
     run('dex',[JAVA,'-cp',d8,'com.android.tools.r8.D8','--release','--min-api','26',
       '--lib',ROOT/'tools'/'android-35.jar','--output',dex,*classes.rglob('*.class')])
     libraries={abi:native(abi) for abi in ['arm64-v8a','x86_64']}
+    # The NDK toolchain emits debug information by default. Strip the copies that
+    # go into the APK (the build tree keeps its symbols) so the download does not
+    # carry several megabytes of .debug_* that no user can use.
+    strip=NDK/'toolchains'/'llvm'/'prebuilt'/'windows-x86_64'/'bin'/'llvm-strip.exe'
     with zipfile.ZipFile(unsigned,'a',zipfile.ZIP_DEFLATED) as z:
         z.write(dex/'classes.dex','classes.dex')
-        for abi,path in libraries.items():z.write(path,'lib/'+abi+'/libinfrared.so')
+        for abi,path in libraries.items():
+            staged=WORK/('strip-'+abi+'.so')
+            shutil.copyfile(path,staged)
+            run('strip-'+abi,[strip,'--strip-all',staged])
+            z.write(staged,'lib/'+abi+'/libinfrared.so')
     credentials=ROOT/'signing'/'local.json'
     if not credentials.exists():
         password=secrets.token_urlsafe(24)
@@ -108,7 +118,7 @@ JPEG 解码：libjpeg-turbo 3.2.0（IJG / BSD / zlib，详见许可文件）。
     os.environ['IR_SIGN_PASSWORD']=password
     bt=next((ROOT/'tools'/'build-tools').glob('*/zipalign.exe')).parent
     run('align',[bt/'zipalign.exe','-f','-P','16','4','runtime/unsigned.apk','runtime/aligned.apk'])
-    apk=ROOT/'dist'/'InfraredRAW-0.2.0-android8-arm64.apk'
+    apk=ROOT/'dist'/('InfraredRAW-'+VERSION+'-android8-arm64.apk')
     run('sign',[JAVA,'-jar',bt/'lib'/'apksigner.jar','sign',
       '--ks',ROOT/'signing'/'infrared.p12','--ks-key-alias','infrared',
       '--ks-pass','env:IR_SIGN_PASSWORD','--key-pass','env:IR_SIGN_PASSWORD','--out',apk,'runtime/aligned.apk'])

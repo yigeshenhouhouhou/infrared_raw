@@ -2,7 +2,7 @@
 from pathlib import Path
 import zipfile
 ROOT=Path(__file__).resolve().parent
-version='0.2.0'
+version='0.2.1'
 out=ROOT/'dist'/('InfraredRAW-'+version+'-source.zip')
 skip={'runtime','dist','signing','tools','__pycache__'}
 with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:

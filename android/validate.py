@@ -75,7 +75,7 @@ if raw.is_file():
         with Image.open(ROOT/'runtime'/name) as im:assert im.size==dims
         report['checks'].append({'name':'real Sony ARW '+(mode or 'preview'),'dimensions':list(dims),'metadata':meta})
 
-apk=ROOT/'dist/InfraredRAW-0.2.0-android8-arm64.apk'
+apk=ROOT/'dist/InfraredRAW-0.2.1-android8-arm64.apk'
 with zipfile.ZipFile(apk) as z:
     assert z.testzip() is None
     assert z.read('classes.dex').startswith(b'dex\n')
