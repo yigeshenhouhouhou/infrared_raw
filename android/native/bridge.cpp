@@ -50,7 +50,8 @@ extern "C" JNIEXPORT jstring JNICALL Java_cn_infrared_studio_Native_profileInfo(
 extern "C" JNIEXPORT jobject JNICALL Java_cn_infrared_studio_Native_render(JNIEnv* e,jclass,jlong h,jdoubleArray values,jint full){
   try{
     auto& s=*get(h);ir::Params p;
-    if(e->GetArrayLength(values)!=29)throw std::runtime_error("Invalid render settings.");
+    jsize count=e->GetArrayLength(values);
+    if(count!=29)throw std::runtime_error("Render settings must contain 29 values, got "+std::to_string(count)+".");
     double v[29];e->GetDoubleArrayRegion(values,0,29,v);
     for(int i=0;i<29;i++){if(!std::isfinite(v[i]))throw std::runtime_error("Non-finite setting.");p.v[i]=float(v[i]);}
     ir::Image original;const ir::Image* image=&s.preview;

@@ -25,7 +25,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
-  private final double[] p={0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,1,60,85,85,35};
+  // Must stay in step with ir::Params (29 values); Native.render rejects any
+  // other length. Trailing seven mirror the desktop reference defaults: shared
+  // logarithmic shoulder, full channel-ratio hue, no DCP, no LUT.
+  private final double[] p={0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,1,60,85,85,35,0,100,50,0,100,0,0};
   private final ArrayList<Slider> sliders=new ArrayList<Slider>();
   private final ExecutorService worker=Executors.newSingleThreadExecutor();
   private final Handler ui=new Handler();
