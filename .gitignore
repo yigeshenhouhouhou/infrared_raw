@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+.pytest_cache/
+runtime/
+output/
+
+# Android build infrastructure: third-party sources and SDK live outside Git.
+android/tools/
+android/vendor/
+android/app/assets/
+android/signing/
+
+# Release binaries are large; only their checksums and validation records are tracked.
+android/dist/*.apk
+android/dist/*.idsig
+android/dist/*.zip

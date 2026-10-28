@@ -1,0 +1,12 @@
+# User storage preference
+
+For all tasks, keep newly authored code, documents, images, logs, downloaded
+dependencies, virtual environments, caches, temporary files, and agent
+deliverables on drive E:. This preference applies to the main agent and all
+delegated agents. Prefer the current project on E:. If the current project
+is not on E:, use E:\科研\光圈计算\agent_work\<task-name> for new deliverables.
+Set process-local TEMP, TMP and package caches to task-local E: directories.
+Do not use the default C: visualization directory for deliverables.
+Installed software and existing user data should not be moved blindly.
+The application's own state and configuration directories are separate;
+do not claim they have been relocated when only project outputs changed.

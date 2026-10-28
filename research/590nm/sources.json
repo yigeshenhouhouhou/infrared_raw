@@ -1,0 +1,33 @@
+{
+  "purpose": "Unmodified public reference profiles for research; not integrated into app.",
+  "profiles": [
+    {
+      "name": "ir590-yellow-trees-blue-sky-dramatic.pp3",
+      "author": "anxix",
+      "license": "CC-BY-SA-4.0",
+      "url": "https://github.com/anxix/rt_ir_presets/blob/master/profiles/ir590-yellow-trees-blue-sky-dramatic.pp3",
+      "git_blob_sha": "74114433c43b301694472c3f52d56b27e45b5749"
+    },
+    {
+      "name": "ir590-yellow-trees.pp3",
+      "author": "anxix",
+      "license": "CC-BY-SA-4.0",
+      "url": "https://github.com/anxix/rt_ir_presets/blob/master/profiles/ir590-yellow-trees.pp3",
+      "git_blob_sha": "aa2f26da304135a288428ad1835aca3418ddd097"
+    },
+    {
+      "name": "ir590-blue-sky-white-leaves.pp3",
+      "author": "anxix",
+      "license": "CC-BY-SA-4.0",
+      "url": "https://github.com/anxix/rt_ir_presets/blob/master/profiles/ir590-blue-sky-white-leaves.pp3",
+      "git_blob_sha": "08d88843a51f781c3ac68ee0ce1a6ea6e3ce9676"
+    },
+    {
+      "name": "LICENSE.txt",
+      "author": "anxix",
+      "license": "CC-BY-SA-4.0",
+      "url": "https://github.com/anxix/rt_ir_presets/blob/master/LICENSE.txt",
+      "git_blob_sha": "ad3fcb9b30f982adce5cf96298eff87c669c0567"
+    }
+  ]
+}
