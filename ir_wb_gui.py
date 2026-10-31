@@ -621,7 +621,7 @@ const imgEl=$('#img'), stage=$('#stage'), selEl=$('#sel'), spinEl=$('#spin');
 const listEl=$('#list'), hintEl=$('#hint');
 
 const PARAMS=[
- {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['reference590','公开 590 预设矩阵（实验）'],['coral_canopy','珊瑚粉红 · 深影 (参考风格)'],['pastel_red','粉红树叶 · 柔和 (590 nm)'],['red_foliage','红色树叶 · 鲜明 (590 nm)'],['orange_foliage','橙色树叶 · 暖调 (590 nm)'],['linear_brg','粉红假色 · 三通道循环'],['linear_rb','线性红蓝互换'],['camera','相机矩阵（实验）'],['classic','原始通道'],['bluegold','旧版蓝金']]},
+ {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['reference590','金色森林'],['coral_canopy','珊瑚粉影'],['linear_brg','梦幻粉紫'],['linear_rb','经典红蓝互换'],['camera','相机色彩'],['classic','原始通道']]},
  {k:'color_sep',g:'590 nm 色彩',lb:'色彩分离',min:-100,max:100,step:1,dec:0},
  {k:'gold',g:'590 nm 色彩',lb:'暖色色相',min:-100,max:100,step:1,dec:0},
  {k:'blue',g:'590 nm 色彩',lb:'冷色色相',min:-100,max:100,step:1,dec:0},

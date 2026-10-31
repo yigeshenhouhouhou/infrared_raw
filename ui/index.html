@@ -849,16 +849,12 @@ const listEl=$('#list'), hintEl=$('#hint'), countBadge=$('#countBadge');
 const PARAMS=[
   // 590 nm 色彩矩阵
   {k:'color_mode',g:'590 nm 色彩矩阵',lb:'色彩方案',type:'sel',opts:[
-    ['reference590','公开 590 预设矩阵 (推荐)'],
-    ['coral_canopy','珊瑚粉红 · 深影 (参考风格)'],
-    ['pastel_red','粉红树叶 · 柔和 (590 nm)'],
-    ['red_foliage','红色树叶 · 鲜明 (590 nm)'],
-    ['orange_foliage','橙色树叶 · 暖调 (590 nm)'],
-    ['linear_brg','粉红假色 · 三通道循环'],
-    ['linear_rb','线性红蓝互换 (Linear R-B)'],
-    ['camera','相机矩阵 (Camera Matrix)'],
-    ['classic','原始通道 (Classic Raw)'],
-    ['bluegold','旧版蓝金 (Blue-Gold)']
+    ['reference590','金色森林'],
+    ['coral_canopy','珊瑚粉影'],
+    ['linear_brg','梦幻粉紫'],
+    ['linear_rb','经典红蓝互换'],
+    ['camera','相机色彩'],
+    ['classic','原始通道']
   ]},
   {k:'color_sep',g:'590 nm 色彩矩阵',lb:'色彩分离',min:-100,max:100,step:1,dec:0,def:0},
   {k:'gold',g:'590 nm 色彩矩阵',lb:'暖色色相',min:-100,max:100,step:1,dec:0,def:0},
@@ -1008,6 +1004,10 @@ function syncLabel(p){
 function syncAll(){
   PARAMS.forEach(p=>{
     const el=$('#s_'+p.k); if(!el) return;
+    if(p.k==='color_mode' && ['pastel_red','red_foliage','orange_foliage','bluegold'].includes(pv[p.k]) &&
+       !Array.from(el.options).some(option=>option.value===pv[p.k])){
+      const option=new Option('已保存的方案',pv[p.k]);option.hidden=true;el.add(option);
+    }
     if(p.k==='mr'||p.k==='mb'){
       const v=pv[p.k];
       el.min=Math.max(0.0001, v*0.5);
