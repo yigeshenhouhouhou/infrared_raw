@@ -242,6 +242,21 @@ def process_array(a, p, blur_repeat=1):
     a = a.astype(np.float32, copy=True)
     h, w = a.shape[:2]
 
+    if p.get('color_mode') == 'coral_canopy':
+        # A creative grade guided by a reference image, not object detection.
+        hue, sat, val = _rgb_to_hsv(np.clip(a, 0, 1))
+        gate = np.clip((sat - .025) / .16, 0, 1)
+        gate = gate * gate * (3 - 2 * gate) * np.clip((val - .025) / .15, 0, 1)
+        warm = _hue_weight(hue, 12, 70) * gate
+        cool = _hue_weight(hue, 190, 85) * gate
+        shift = (354 - hue + 180) % 360 - 180
+        hue = (hue + .72 * warm * shift - 12 * cool) % 360
+        sat = np.clip(sat * (1 + .48 * warm - .3 * cool), 0, 1)
+        val = val * (.88 + .12 * np.clip(val / .6, 0, 1))
+        val = np.clip(val + .30 * warm * val * (1 - val), 0, 1)
+        val *= 1 - .14 * cool
+        a = _hsv_to_rgb(hue, sat, val)
+
     if p.get("color_mode", "classic") == "bluegold":
         hue, sat, val = _rgb_to_hsv(a)
         def smooth(x):
@@ -606,7 +621,7 @@ const imgEl=$('#img'), stage=$('#stage'), selEl=$('#sel'), spinEl=$('#spin');
 const listEl=$('#list'), hintEl=$('#hint');
 
 const PARAMS=[
- {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['reference590','公开 590 预设矩阵（实验）'],['pastel_red','粉红树叶 · 柔和 (590 nm)'],['red_foliage','红色树叶 · 鲜明 (590 nm)'],['orange_foliage','橙色树叶 · 暖调 (590 nm)'],['linear_brg','粉红假色 · 三通道循环'],['linear_rb','线性红蓝互换'],['camera','相机矩阵（实验）'],['classic','原始通道'],['bluegold','旧版蓝金']]},
+ {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['reference590','公开 590 预设矩阵（实验）'],['coral_canopy','珊瑚粉红 · 深影 (参考风格)'],['pastel_red','粉红树叶 · 柔和 (590 nm)'],['red_foliage','红色树叶 · 鲜明 (590 nm)'],['orange_foliage','橙色树叶 · 暖调 (590 nm)'],['linear_brg','粉红假色 · 三通道循环'],['linear_rb','线性红蓝互换'],['camera','相机矩阵（实验）'],['classic','原始通道'],['bluegold','旧版蓝金']]},
  {k:'color_sep',g:'590 nm 色彩',lb:'色彩分离',min:-100,max:100,step:1,dec:0},
  {k:'gold',g:'590 nm 色彩',lb:'暖色色相',min:-100,max:100,step:1,dec:0},
  {k:'blue',g:'590 nm 色彩',lb:'冷色色相',min:-100,max:100,step:1,dec:0},

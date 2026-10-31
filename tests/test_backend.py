@@ -135,6 +135,17 @@ def test_half_full_exposure_agreement(dng):
                                full[60, [8,24,40,56,72,88,104,120]], atol=5e-4)
 
 
+def test_coral_export_uses_same_grade(dng, tmp_path, monkeypatch):
+    monkeypatch.setattr(gui, 'OUTDIR', str(tmp_path))
+    p=params(color_mode='coral_canopy')
+    target=gui.export_tiff(dng,1,1,p,1,'ramp.dng','jpeg')
+    expected=gui.process_array(backend.tone_map(backend.decode_linear(dng,1,1,False),p,
+                                                 backend.camera_to_prophoto(dng)),p)
+    with Image.open(target) as im:
+        assert np.abs(np.asarray(im).astype(float)/255-expected).mean()<.015
+    assert json.loads(Path(target+'.json').read_text('utf-8'))['parameters']['color_mode']=='coral_canopy'
+
+
 def test_blur_does_not_wrap():
     a=np.zeros((9,9,3),np.float32); a[:,0]=1
     assert gui._blur3(a)[:,-1].max() == 0

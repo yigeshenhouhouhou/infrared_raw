@@ -89,7 +89,7 @@ def test_selective_saturation_and_color_controls():
         np.testing.assert_allclose(changed[0,2],colors[0,2],atol=1e-6)
 
 
-@pytest.mark.parametrize('mode', ['pastel_red', 'red_foliage', 'orange_foliage', 'linear_brg'])
+@pytest.mark.parametrize('mode', ['pastel_red', 'red_foliage', 'orange_foliage', 'linear_brg', 'coral_canopy'])
 def test_added_profiles_preserve_neutral_and_change_chromatic_pixels(mode):
     values=np.geomspace(.0001,30,80).astype(np.float32)
     neutral=np.repeat(values[None,:,None],3,-1)
@@ -108,5 +108,20 @@ def test_cyclic_channel_profile_order():
 
 
 def test_profile_names_are_accepted_by_server():
-    for mode in ('pastel_red','red_foliage','orange_foliage','linear_brg'):
+    for mode in ('pastel_red','red_foliage','orange_foliage','linear_brg','coral_canopy'):
         assert gui.parse_params({'color_mode':[mode]})['color_mode']==mode
+
+
+def test_coral_grade_keeps_greys_neutral_and_softens_highlights():
+    p={**gui.DEFAULTS,'color_mode':'coral_canopy'}
+    values=np.linspace(0,1,200,dtype=np.float32)
+    greys=np.repeat(values[None,:,None],3,axis=-1)
+    result=gui.process_array(greys,p)
+    np.testing.assert_allclose(result[...,0],result[...,1],atol=1e-6)
+    np.testing.assert_allclose(result[...,1],result[...,2],atol=1e-6)
+    assert np.all(np.diff(result[0,:,0])>0)
+    assert result.min()>=0 and result.max()<=1
+    patches=np.array([[[.75,.40,.38],[.20,.40,.43],[.5,.5,.5]]],np.float32)
+    output=gui.process_array(patches,p)
+    assert output[0,0,0]>output[0,0,2]>output[0,0,1]
+    assert output[0,1].max()<patches[0,1].max()

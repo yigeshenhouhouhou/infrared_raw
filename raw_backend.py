@@ -104,6 +104,8 @@ _PROFILE_MIXERS = {
 }
 for _name in ('pastel_red', 'red_foliage', 'orange_foliage'):
     _PROFILE_MIXERS[_name] /= _PROFILE_MIXERS[_name].sum(axis=1, keepdims=True)
+# Creative look: adapted pastel mixer plus a separate display-space grade.
+_PROFILE_MIXERS['coral_canopy'] = _PROFILE_MIXERS['pastel_red']
 
 CAMERA_COLOR_MODES = frozenset((*_PROFILE_MIXERS, 'camera'))
 COLOR_MODES = CAMERA_COLOR_MODES | frozenset(('classic', 'bluegold', 'linear_rb', 'linear_brg'))
