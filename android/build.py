@@ -15,7 +15,7 @@ ROOT=Path(__file__).resolve().parent
 WORK=ROOT/'runtime'
 PROJECT=ROOT.parent
 # Single source of truth for the release name; keep AndroidManifest in step.
-VERSION='0.3.0'
+VERSION='0.4.0'
 TOOLS=Path(os.environ.get('IR_ANDROID_LEGACY_TOOLS',PROJECT.parent/'agent_work'/'sony-a7r2-k80'/'tools'))
 JAVA=Path(os.environ.get('IR_ANDROID_JAVA',TOOLS/'jadx'/'jre'/'bin'/'java.exe'))
 NDK=Path(os.environ.get('IR_ANDROID_NDK',TOOLS/'android-ndk-r19c'))

@@ -51,9 +51,9 @@ extern "C" JNIEXPORT jobject JNICALL Java_cn_infrared_studio_Native_render(JNIEn
   try{
     auto& s=*get(h);ir::Params p;
     jsize count=e->GetArrayLength(values);
-    if(count!=29)throw std::runtime_error("Render settings must contain 29 values, got "+std::to_string(count)+".");
-    double v[29];e->GetDoubleArrayRegion(values,0,29,v);
-    for(int i=0;i<29;i++){if(!std::isfinite(v[i]))throw std::runtime_error("Non-finite setting.");p.v[i]=float(v[i]);}
+    if(count!=31)throw std::runtime_error("Render settings must contain 31 values, got "+std::to_string(count)+".");
+    double v[31];e->GetDoubleArrayRegion(values,0,31,v);
+    for(int i=0;i<31;i++){if(!std::isfinite(v[i]))throw std::runtime_error("Non-finite setting.");p.v[i]=float(v[i]);}
     ir::Image original;const ir::Image* image=&s.preview;
     if(full){original=ir::decode(s.path,full==2,nullptr,nullptr,nullptr,nullptr,0);image=&original;}
     jclass bitmap=e->FindClass("android/graphics/Bitmap");

@@ -16,16 +16,12 @@ struct Session {
 // EV, midtones, highlights, shadows, contrast, black, R, B,
 // swap mode, swap %, saturation, hotspot, cool light, warm light,
 // denoise, sharpen, swap highlight protection. G always equals one.
-// Append: 590 profile (0 classic / 1 blue-gold), separation, gold, blue, vibrance.
+// Append: color scheme, separation, warm hue, cool hue, vibrance.
 // Append: tone mapper, sigmoid hue preservation, DCP illuminant blend,
 // DCP look amount, LUT amount, DCP enable, LUT linear/encoded input.
-// Defaults are pinned to the desktop reference (ir_wb_gui.DEFAULTS) so that
-// callers which send only the 22 UI values, and render() with untouched
-// Params, both reproduce desktop.tone_map() exactly. Indices 22-28 are the
-// newer profile/LUT controls: mode 0 is the shared-gain logarithmic shoulder
-// the desktop uses, 100 keeps full channel-ratio hue, and the LUT amount is
-// inert until a .cube is loaded.
-struct Params { float v[29]={0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,1,60,85,85,35,0,100,50,0,100,0,0}; };
+// Append warm and cool saturation. UI callers supply all 31 values; the
+// default legacy look remains for native compatibility checks.
+struct Params { float v[31]={0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,1,60,85,85,35,0,100,50,0,100,0,0,0,0}; };
 Image decode(const std::string& path,bool half,std::string* camera=nullptr,
              int* width=nullptr,int* height=nullptr,double* saturated=nullptr,int maxSide=1400,ColorContext* color=nullptr);
 Session load(const std::string& path);

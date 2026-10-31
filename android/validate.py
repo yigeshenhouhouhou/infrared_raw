@@ -54,10 +54,28 @@ for case in cases:
     assert error<4e-6,(case,error)
 report['checks'].append({'name':'native float pixel parity','cases':len(cases),'samples':len(cases)*10,'max_abs_error':maximum})
 
+new_cases=[('reference590',3,{}),('coral_canopy',8,{}),('linear_brg',7,{}),
+           ('linear_rb',6,{}),('camera',2,{}),('classic',0,{}),
+           ('coral_canopy',8,{'warm_sat':-75,'cool_sat':40,'gold':30,'blue':-20,'color_sep':20,'vibrance':20}),
+           ('linear_brg',7,{'sat':150,'warm_sat':40,'cool_sat':-60,'sky_light':35,'veg_light':-25})]
+new_max=0
+for name,mode,case in new_cases:
+    p={**desktop.DEFAULTS,'color_mode':name,**case}
+    values=[p.get(k,1 if k in ('mr','mb') else 0) if k!='swap_mode' and k!='color_mode' else (mode if k=='color_mode' else 0) for k in keys]
+    values += [0,100,50,0,100,0,0,p.get('warm_sat',0),p.get('cool_sat',0)]
+    actual=np.array([[float(x) for x in ln.split()] for ln in run('--pixels',*values).splitlines()])
+    expected=[]
+    for v in [0,.0001,.01,.05,.18,.5,1,2,8,100]:
+        a=np.broadcast_to(np.array([v,v*.6,v*.2],np.float32),(3,3,3))
+        expected.append(desktop.process_array(desktop.tone_map(a,p),p)[1,1])
+    error=float(np.abs(actual-np.array(expected)).max());new_max=max(new_max,error)
+    assert error<5e-6,(name,case,error)
+report['checks'].append({'name':'six desktop color schemes and selective controls','cases':len(new_cases),'max_abs_error':new_max})
+
 # These alternative looks must leave a balanced neutral grey neutral. The
 # reference mixer has been adapted to this pipeline; this is not PP3 parity.
 for mode in (2,3,6):
-    values=[0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,mode,60,85,85,35,0,100,50,0,100,0,0]
+    values=[0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,mode,0,0,0,0,0,100,50,0,100,0,0]
     neutral=np.array([[float(x) for x in ln.split()] for ln in run('--neutral',*values).splitlines()])
     assert np.isfinite(neutral).all() and np.ptp(neutral,axis=1).max()<2e-5,(mode,neutral)
 values[17]=6
@@ -88,7 +106,7 @@ if raw.is_file():
         with Image.open(ROOT/'runtime'/name) as im:assert im.size==dims
         report['checks'].append({'name':'real Sony ARW '+(mode or 'preview'),'dimensions':list(dims),'metadata':meta})
 
-apk=ROOT/'dist/InfraredRAW-0.3.0-android8-arm64.apk'
+apk=ROOT/'dist/InfraredRAW-0.4.0-android8-arm64.apk'
 with zipfile.ZipFile(apk) as z:
     assert z.testzip() is None
     assert z.read('classes.dex').startswith(b'dex\n')

@@ -2,7 +2,7 @@
 from pathlib import Path
 import zipfile
 ROOT=Path(__file__).resolve().parent
-version='0.3.0'
+version='0.4.0'
 out=ROOT/'dist'/('InfraredRAW-'+version+'-source.zip')
 skip={'runtime','dist','signing','tools','__pycache__'}
 with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
@@ -16,7 +16,10 @@ with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
                  'research/590nm/LICENSE.txt','research/590nm/sources.json',
                  'research/590nm/ir590-yellow-trees.pp3',
                  'research/590nm/ir590-yellow-trees-blue-sky-dramatic.pp3',
-                 'research/590nm/ir590-blue-sky-white-leaves.pp3']:
+                 'research/590nm/ir590-blue-sky-white-leaves.pp3',
+                 'research/590nm/ir590-pastel-red-trees.pp3',
+                 'research/590nm/ir590-red-trees.pp3',
+                 'research/590nm/ir590-orange-trees.pp3']:
         z.write(ROOT.parent/name,'infrared_raw/'+name)
 with zipfile.ZipFile(out) as z:
     assert z.testzip() is None

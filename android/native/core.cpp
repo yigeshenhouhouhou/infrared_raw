@@ -178,6 +178,17 @@ void pixel(const float* input,const Params& p,float scale,float x,float y,float*
   float black=p.v[5]/100*.22f;
   float hotspot=1-.55f*p.v[11]/100*std::exp(-((x*x+y*y)/2)/.12f);
   for(int c=0;c<3;c++)a[c]=clamp((encode(std::max(0.f,linear[c]))-black)/(1-black));
+  if(profile==8){
+    float h,s,val;toHSV(a,h,s,val);
+    float gate=smooth((s-.025f)/.16f)*clamp((val-.025f)/.15f);
+    float warm=hueWeight(h,12,70)*gate,cool=hueWeight(h,190,85)*gate;
+    float shift=std::fmod(354-h+540,360)-180;
+    h=std::fmod(h+.72f*warm*shift-12*cool+360,360);
+    s=clamp(s*(1+.48f*warm-.3f*cool));
+    val*=.88f+.12f*clamp(val/.6f);
+    val=clamp(val+.30f*warm*val*(1-val));val*=1-.14f*cool;
+    fromHSV(h,s,val,a);
+  }
   if(profile==1){
     float h,s,val;toHSV(a,h,s,val);
     float gate=smooth((s-.015f)/.12f)*smooth((val-.02f)/.12f);
@@ -195,7 +206,7 @@ void pixel(const float* input,const Params& p,float scale,float x,float y,float*
   float lum=.2126f*a[0]+.7152f*a[1]+.0722f*a[2];
   t*=1-p.v[16]/100*clamp((lum-.55f)/.35f);
   for(int c=0;c<3;c++)a[c]=copy[c]*(1-t)+copy[permutations[mode][c]]*t;
-  if(p.v[10]!=100||p.v[12]||p.v[13]){
+  if(p.v[10]!=100||p.v[12]||p.v[13]||p.v[29]||p.v[30]||(profile!=1&&(p.v[18]||p.v[19]||p.v[20]||p.v[21]))){
     float mx=std::max({a[0],a[1],a[2]}),mn=std::min({a[0],a[1],a[2]}),d=mx-mn;
     float h=0,s=mx>1e-8?d/mx:0;
     if(d>1e-8){
@@ -203,6 +214,9 @@ void pixel(const float* input,const Params& p,float scale,float x,float y,float*
       else if(mx==a[1])h=((a[2]-a[0])/d+2)*60;
       else h=((a[0]-a[1])/d+4)*60;
     }
+    float warm=std::max(hueWeight(h,45,75),hueWeight(h,15,45)),cool=hueWeight(h,210,90);
+    s=clamp(s*std::max(0.f,1+warm*p.v[29]/100+cool*p.v[30]/100));
+    if(profile!=1){s=clamp(s*(1+p.v[18]/100));s=clamp(s+p.v[21]/100*s*(1-s));h=std::fmod(h+30*warm*p.v[19]/100+30*cool*p.v[20]/100+360,360);}
     s=clamp(s*p.v[10]/100);
     mx=clamp(mx*(1+p.v[12]/100*.6f*hueWeight(h,215,70)));
     mx=clamp(mx*(1+p.v[13]/100*.6f*hueWeight(h,95,75)));

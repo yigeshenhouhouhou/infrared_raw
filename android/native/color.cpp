@@ -49,6 +49,7 @@ void compressGamut(float* a){
 void profiledColor(float* a,int mode,const ColorContext& ctx,float blend,bool useDcp){
   if(mode<2)return;
   if(mode==6){std::swap(a[0],a[2]);return;} // darktable-style linear infrared BGR input.
+  if(mode==7){float r=a[0],g=a[1];a[0]=a[2];a[1]=r;a[2]=g;return;}
   Matrix input=ctx.prepared?ctx.activeInput:(useDcp && ctx.hasDcp?ctx.dcp.inputMatrix(blend):ctx.cameraToProPhoto);
   transform(input,a,a);
   if(useDcp && ctx.hasDcp){
@@ -63,10 +64,10 @@ void profiledColor(float* a,int mode,const ColorContext& ctx,float blend,bool us
     {-.11f,.05f,1.f,-.40f,.83f,.46f,.97f,.24f,-.46f},
     {-.110f,.050f,1.f,-.400f,.830f,.460f,1.233f,.209f,-.480f},
     {-.09f,.13f,1.14f,-.13f,.80f,.25f,1.06f,.01f,-.13f}};
-  if(mode>=3 && mode<=5){
+  if((mode>=3 && mode<=5)||mode==8){
     // The published mixer rows do not sum to one. Normalize each row so a
     // picked neutral stays neutral with our different input transform.
-    Matrix m=mixers[mode-3];
+    Matrix m=mode==8?Matrix{{-.11f,.05f,1.f,-.09f,.83f,.03f,.97f,.01f,-.07f}}:mixers[mode-3];
     for(int r=0;r<3;r++){float sum=m[3*r]+m[3*r+1]+m[3*r+2];for(int c=0;c<3;c++)m[3*r+c]/=sum;}
     transform(m,a,a);
   }

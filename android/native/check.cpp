@@ -7,7 +7,7 @@ int main(int argc,char** argv){
   try{
     if(argc>1 && (std::string(argv[1])=="--pixels" || std::string(argv[1])=="--neutral")){
       // Float results for parity tests against the desktop implementation.
-      ir::Params p;for(int i=0;i<29 && i+2<argc;i++)p.v[i]=float(std::atof(argv[i+2]));
+      ir::Params p;for(int i=0;i<31 && i+2<argc;i++)p.v[i]=float(std::atof(argv[i+2]));
       std::cout<<std::setprecision(9);
       for(float v:{0.f,.0001f,.01f,.05f,.18f,.5f,1.f,2.f,8.f,100.f}){
         bool neutral=std::string(argv[1])=="--neutral";
