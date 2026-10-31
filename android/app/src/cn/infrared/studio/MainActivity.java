@@ -28,7 +28,9 @@ public final class MainActivity extends Activity {
   // Must stay in step with ir::Params (29 values); Native.render rejects any
   // other length. Trailing seven mirror the desktop reference defaults: shared
   // logarithmic shoulder, full channel-ratio hue, no DCP, no LUT.
-  private final double[] p={0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,1,60,85,85,35,0,100,50,0,100,0,0};
+  private final double[] p={0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,3,60,85,85,35,0,100,50,0,100,0,0};
+  private static final int[] COLOR_MODES={3,6,2,0,1};
+  private int colorPosition(){for(int i=0;i<COLOR_MODES.length;i++)if(COLOR_MODES[i]==(int)p[17])return i;return 0;}
   private final ArrayList<Slider> sliders=new ArrayList<Slider>();
   private final ExecutorService worker=Executors.newSingleThreadExecutor();
   private final Handler ui=new Handler();
@@ -86,12 +88,12 @@ public final class MainActivity extends Activity {
     exportSettings.addView(sizeSpinner,new LinearLayout.LayoutParams(0,dp(48),1));
     heading(root,"590 nm 色彩");
     colorSpinner=new Spinner(this);colorSpinner.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,
-      new String[]{"原始通道 / 经典互换","590 nm 蓝金（风景假色）"}));root.addView(colorSpinner);colorSpinner.setSelection(1);
+      new String[]{"公开 590 预设矩阵（实验）","线性红蓝互换","相机矩阵（实验）","原始通道","旧版蓝金"}));root.addView(colorSpinner);colorSpinner.setSelection(0);
     colorSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
       public void onNothingSelected(AdapterView<?> a){}
-      public void onItemSelected(AdapterView<?> a,View v,int pos,long id){if(!syncing && p[17]!=pos){p[17]=pos;if(pos==1){p[8]=0;p[9]=0;}sync();schedule();}}
+      public void onItemSelected(AdapterView<?> a,View v,int pos,long id){if(!syncing && p[17]!=COLOR_MODES[pos]){p[17]=COLOR_MODES[pos];p[8]=0;p[9]=0;sync();schedule();}}
     });
-    root.addView(text("蓝金方案已含混色；中性区域请先用吸管校准白平衡。",12));
+    root.addView(text("先在白墙、灰路等中性区域取白，再比较色彩方案；公开矩阵为近似，效果随相机和场景变化。以下四项仅用于旧版蓝金。",12));
     addSlider(root,"色彩分离",18,0,100,false);addSlider(root,"暖色金黄",19,0,100,false);
     addSlider(root,"蓝色校正",20,0,100,false);addSlider(root,"自然饱和",21,0,100,false);
     heading(root,"亮度与高光");
@@ -152,8 +154,8 @@ public final class MainActivity extends Activity {
       catch(NumberFormatException ex){input.setError("请输入范围内的倍率");}
     }});}});dialog.show();
   }
-  private void defaults(){for(int i=0;i<p.length;i++)p[i]=0;p[6]=autoR;p[7]=autoB;p[10]=100;p[17]=1;p[18]=60;p[19]=85;p[20]=85;p[21]=35;}
-  private void sync(){syncing=true;for(Slider s:sliders)s.update();if(swapSpinner!=null)swapSpinner.setSelection((int)p[8]);if(colorSpinner!=null)colorSpinner.setSelection((int)p[17]);syncing=false;}
+  private void defaults(){for(int i=0;i<p.length;i++)p[i]=0;p[6]=autoR;p[7]=autoB;p[10]=100;p[17]=3;p[18]=60;p[19]=85;p[20]=85;p[21]=35;p[23]=100;p[24]=50;p[26]=100;}
+  private void sync(){syncing=true;for(Slider s:sliders)s.update();if(swapSpinner!=null)swapSpinner.setSelection((int)p[8]);if(colorSpinner!=null)colorSpinner.setSelection(colorPosition());syncing=false;}
   private void setBusy(boolean value){busy=value;boolean ready=handle!=0 && !value;
     importButton.setEnabled(!value);exportButton.setEnabled(ready);pickButton.setEnabled(ready);wbButton.setEnabled(ready);
     exposureButton.setEnabled(ready);resetButton.setEnabled(ready);sizeSpinner.setEnabled(ready);
@@ -240,7 +242,7 @@ public final class MainActivity extends Activity {
     }});
   }
   private void persist(){if(handle==0)return;SharedPreferences.Editor e=prefs.edit();e.putInt("engine",2);e.putString("path",sourcePath);e.putString("name",sourceName);e.putLong("scale",Double.doubleToLongBits(currentScale));for(int i=0;i<p.length;i++)e.putLong("p"+i,Double.doubleToLongBits(p[i]));e.apply();}
-  private void about(){try{new AlertDialog.Builder(this).setTitle("红外 RAW 0.2.0").setMessage(new String(asset("NOTICE.txt"),"UTF-8")).setPositiveButton("关闭",null).show();}catch(Exception e){error("无法打开说明",e);}}
+  private void about(){try{new AlertDialog.Builder(this).setTitle("红外 RAW 0.3.0").setMessage(new String(asset("NOTICE.txt"),"UTF-8")).setPositiveButton("关闭",null).show();}catch(Exception e){error("无法打开说明",e);}}
   @Override protected void onPause(){super.onPause();persist();}
   @Override protected void onDestroy(){destroyed=true;ticket++;ui.removeCallbacks(delayed);worker.execute(new Runnable(){public void run(){if(handle!=0){Native.close(handle);handle=0;}}});worker.shutdown();if(preview!=null){image.setImageBitmap(null);preview.recycle();preview=null;}super.onDestroy();}
 }

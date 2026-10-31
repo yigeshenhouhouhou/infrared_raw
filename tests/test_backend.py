@@ -122,7 +122,7 @@ def test_export_linear_and_icc(dng, tmp_path, monkeypatch):
         assert im.info['icc_profile'] == backend.srgb_icc()
         # Full-size JPG uses the same edited pixels as developed TIFF.
         expected=gui.process_array(gui.tone_map(gui.decode_linear(dng,4,2,False),
-                    params(exposure=2,black=35,swap=100,swap_mode='rb')),
+                    params(exposure=2,black=35,swap=100,swap_mode='rb'),backend.camera_to_prophoto(dng)),
                     params(exposure=2,black=35,swap=100,swap_mode='rb'))
         assert np.abs(np.asarray(im).astype(float)/255-expected).mean() < .015
     assert json.loads(Path(jpg_path+'.json').read_text('utf-8'))['parameters']['black'] == 35
@@ -160,6 +160,14 @@ def test_http_upload_preview_export(dng, tmp_path, monkeypatch):
             assert exported.suffix == '.jpg'
             with Image.open(exported) as im:
                 assert im.size == (128,128)
+        custom=tmp_path/'custom';custom.mkdir()
+        from urllib.parse import quote
+        with urlopen(Request(url+f'/api/export?fid={fid}&mode=jpeg&outdir='+quote(str(custom)),data=b'')) as r:
+            exported=Path(json.load(r)['path'])
+            assert exported.parent==custom and exported.is_file()
+        with pytest.raises(HTTPError) as err:
+            urlopen(Request(url+f'/api/export?fid={fid}&mode=jpeg&outdir=C%3A%5C',data=b''))
+        assert err.value.code == 400
         with pytest.raises(HTTPError) as err:
             urlopen(Request(url+'/api/analyze',data=b'x',headers={'Origin':'https://invalid.example'}))
         assert err.value.code == 403

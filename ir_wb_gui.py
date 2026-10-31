@@ -11,9 +11,11 @@ ir_wb_gui.py — 红外 RAW 白平衡 + 后期一体化界面（本地网页）
 """
 
 import io
+import html
 import json
 import os
 import secrets
+import subprocess
 import sys
 import threading
 import time
@@ -60,11 +62,13 @@ LOCK = threading.Lock()
 PORT = int(os.environ.get("IR_WB_PORT", "8765"))
 
 DEFAULTS = {
-    "color_mode": "bluegold",
-    "color_sep": 60.0,
-    "gold": 85.0,
-    "blue": 85.0,
-    "vibrance": 35.0,
+    "color_mode": "reference590",
+    "color_sep": 0.0,
+    "gold": 0.0,
+    "blue": 0.0,
+    "vibrance": 0.0,
+    "warm_sat": 0.0,
+    "cool_sat": 0.0,
     "brightness": 0.0,
     "black": 0.0,       # 保留用户新增的显示黑场调整
     "exposure": 0.0,    # 曝光，线性域，单位 EV
@@ -109,12 +113,17 @@ def parse_params(qs):
             p[key] = DEFAULTS[key]
 
     cl("brightness", -100.0, 100.0)
-    cl("color_sep", 0.0, 100.0)
-    cl("gold", 0.0, 100.0)
-    cl("blue", 0.0, 100.0)
-    cl("vibrance", 0.0, 100.0)
-    if p["color_mode"] not in ("classic", "bluegold"):
+    cl("color_sep", -100.0, 100.0)
+    cl("gold", -100.0, 100.0)
+    cl("blue", -100.0, 100.0)
+    cl("vibrance", -100.0, 100.0)
+    cl("warm_sat", -100.0, 100.0)
+    cl("cool_sat", -100.0, 100.0)
+    if p["color_mode"] not in ("classic", "bluegold", "reference590", "linear_rb", "camera"):
         p["color_mode"] = DEFAULTS["color_mode"]
+    if p['color_mode'] == 'bluegold':
+        for key in ('color_sep', 'gold', 'blue', 'vibrance'):
+            p[key] = max(0.0, p[key])
     cl("black", 0.0, 100.0)
     cl("exposure", EV_MIN, EV_MAX)
     cl("highlights", 0.0, 100.0)
@@ -274,11 +283,23 @@ def process_array(a, p, blur_repeat=1):
         perm = a @ T.T
         a = a * (1.0 - tp[..., None]) + perm * tp[..., None]
 
+    modern = p.get('color_mode') != 'bluegold'
     need_hsl = (abs(p["sat"] - 100.0) > 1e-3 or abs(p["sky_light"]) > 1e-3
-                or abs(p["veg_light"]) > 1e-3)
+                or abs(p["veg_light"]) > 1e-3 or p.get('warm_sat',0) or p.get('cool_sat',0)
+                or (modern and any(p.get(k,0) for k in ('color_sep','gold','blue','vibrance'))))
     if need_hsl:
         a = np.clip(a, 0, 1)
         hue, sat, val = _rgb_to_hsv(a)
+
+        warm = np.maximum(_hue_weight(hue, 45, 75), _hue_weight(hue, 15, 45))
+        cool = _hue_weight(hue, 210, 90)
+        sat = np.clip(sat * np.maximum(0, 1 + warm*p.get('warm_sat',0)/100
+                                        + cool*p.get('cool_sat',0)/100), 0, 1)
+        if modern:
+            sat = np.clip(sat * (1 + p.get('color_sep',0)/100), 0, 1)
+            sat = np.clip(sat + p.get('vibrance',0)/100 * sat*(1-sat), 0, 1)
+            hue = (hue + 30*warm*p.get('gold',0)/100
+                       + 30*cool*p.get('blue',0)/100) % 360
 
         if abs(p["sat"] - 100.0) > 1e-3:
             sat = np.clip(sat * (p["sat"] / 100.0), 0.0, 1.0)
@@ -310,7 +331,8 @@ def render_jpeg(path, mr, mb, p, scale, max_side=1400, quality=86):
 
     lin = decode_linear(path, mr, mb, half_size=True)
     lin = _downscale(lin, max_side)
-    a = tone_map(lin * np.float32(scale), p)
+    matrix = backend.camera_to_prophoto(path) if p['color_mode'] in ('reference590', 'camera') else None
+    a = tone_map(lin * np.float32(scale), p, matrix)
     a = process_array(a, p, blur_repeat=1)
 
     buf = io.BytesIO()
@@ -319,24 +341,26 @@ def render_jpeg(path, mr, mb, p, scale, max_side=1400, quality=86):
     return buf.getvalue()
 
 
-def export_tiff(path, mr, mb, p, scale, name, mode="developed"):
+def export_tiff(path, mr, mb, p, scale, name, mode="developed", outdir=None):
     import tifffile
     if mode not in ("developed", "linear", "jpeg"):
         raise ValueError("未知导出类型")
     lin = decode_linear(path, mr, mb, half_size=False)
     recipe = {"version": 3, "source": name, "white_balance": [mr, 1, mb],
               "scale": scale, "parameters": p, "export": mode,
-              "working_space": "camera RGB false colour; G=1 exposure anchor"}
+              "working_space": "camera RGB; selected display color mode; G=1 exposure anchor"}
     base = os.path.splitext(os.path.basename(name))[0]
     ext = ".jpg" if mode == "jpeg" else ".tif"
-    out = os.path.join(OUTDIR, base + "_" + mode + "_" + secrets.token_hex(4) + ext)
+    destination = OUTDIR if outdir is None else validate_export_dir(outdir)
+    out = os.path.join(destination, base + "_" + mode + "_" + secrets.token_hex(4) + ext)
     if mode == "linear":
         # Archive WB + exposure without display curve, ICC, channel swaps or clipping.
         lin *= np.float32(scale * 2 ** p["exposure"])
         tifffile.imwrite(out, lin, photometric="rgb", metadata=None,
                          description=json.dumps(recipe, ensure_ascii=False))
     else:
-        a = tone_map(lin * np.float32(scale), p)
+        matrix = backend.camera_to_prophoto(path) if p['color_mode'] in ('reference590', 'camera') else None
+        a = tone_map(lin * np.float32(scale), p, matrix)
         del lin
         rep = max(1, int(round(max(a.shape[:2]) / 1400.0)))
         a = process_array(a, p, blur_repeat=rep)
@@ -351,6 +375,15 @@ def export_tiff(path, mr, mb, p, scale, name, mode="developed"):
                              iccprofile=backend.srgb_icc())
     Path(out + ".json").write_text(json.dumps(recipe, ensure_ascii=False, indent=2), encoding="utf-8")
     return out
+
+
+def validate_export_dir(path):
+    folder = Path(path).expanduser().resolve()
+    if os.path.splitdrive(str(folder))[0].upper() != 'E:':
+        raise ValueError('保存目录必须位于 E 盘')
+    if not folder.is_dir():
+        raise ValueError('保存目录不存在，请填写已有的 E 盘文件夹')
+    return str(folder)
 
 
 def analyze_bytes(data, filename):
@@ -501,6 +534,11 @@ button:disabled{opacity:.45;cursor:default}
 .meta b{font-weight:500;color:var(--txt);
   font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
 .note{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.7}
+.histogram{margin-top:10px;padding:8px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.histogram canvas{width:256px;height:100px;max-width:100%;background:#17171a;border-radius:5px}
+.histogram .note{margin:0}
+.export-dir{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.export-dir input{flex:1;min-width:240px;padding:6px;border:1px solid var(--line);border-radius:6px}
 .warn{color:var(--danger)}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
   background:#1b1b19;color:#fff;font-size:13px;padding:9px 16px;border-radius:8px;
@@ -523,7 +561,7 @@ button:disabled{opacity:.45;cursor:default}
     </div>
     <input type="file" id="file" multiple hidden>
     <ul id="list"></ul>
-    <div class="note" id="tip">自动倍率按整幅平均估算，仅作起点。590 nm 红外使用相机通道假色，不套用可见光相机色彩矩阵。若整体偏蓝或偏红，用吸管在画面上框一块本该是中性的区域（白墙、灰路、白云）重取。</div>
+    <div class="note" id="tip">自动白平衡和曝光仅作起点。请用吸管框选本应中性的白墙或灰路，再比较色彩方案。公开矩阵使用可见光相机矩阵作为近似，并非红外标定。</div>
   </section>
 
   <section class="right">
@@ -536,6 +574,9 @@ button:disabled{opacity:.45;cursor:default}
       <span class="spin" id="spin">渲染中</span>
     </div>
 
+    <div class="card histogram"><canvas id="hist" width="256" height="100" aria-label="预览亮度直方图"></canvas>
+      <div class="note" id="histInfo">预览直方图：左侧为暗部，右侧为高光。<br>导入照片后显示。</div></div>
+
     <div class="bar">
       <button id="btnPick" disabled>吸管取白</button>
       <button id="btnAuto" disabled>回自动倍率</button>
@@ -547,6 +588,7 @@ button:disabled{opacity:.45;cursor:default}
       <button id="btnJpg" disabled>导出 JPG</button>
       <button id="btnAll" disabled>全部导出</button>
     </div>
+    <div class="export-dir"><label for="exportDir">保存文件夹</label><input id="exportDir" type="text" aria-label="保存文件夹" placeholder="输入已有的 E 盘文件夹路径"><button id="btnFolder">选择文件夹</button><span class="note">选择 E 盘已有文件夹；JPG 和 TIFF 共用</span></div>
 
     <div class="card panel">
       <div class="pgrid" id="pgrid"></div>
@@ -564,33 +606,35 @@ const imgEl=$('#img'), stage=$('#stage'), selEl=$('#sel'), spinEl=$('#spin');
 const listEl=$('#list'), hintEl=$('#hint');
 
 const PARAMS=[
- {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['bluegold','590 nm 蓝金（自动混色）'],['classic','原始通道 / 经典互换']]},
- {k:'color_sep',g:'590 nm 色彩',lb:'色彩分离',min:0,max:100,step:1,dec:0},
- {k:'gold',g:'590 nm 色彩',lb:'暖色金黄',min:0,max:100,step:1,dec:0},
- {k:'blue',g:'590 nm 色彩',lb:'蓝色校正',min:0,max:100,step:1,dec:0},
- {k:'vibrance',g:'590 nm 色彩',lb:'自然饱和',min:0,max:100,step:1,dec:0},
+ {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['reference590','公开 590 预设矩阵（实验）'],['linear_rb','线性红蓝互换'],['camera','相机矩阵（实验）'],['classic','原始通道'],['bluegold','旧版蓝金']]},
+ {k:'color_sep',g:'590 nm 色彩',lb:'色彩分离',min:-100,max:100,step:1,dec:0},
+ {k:'gold',g:'590 nm 色彩',lb:'暖色色相',min:-100,max:100,step:1,dec:0},
+ {k:'blue',g:'590 nm 色彩',lb:'冷色色相',min:-100,max:100,step:1,dec:0},
+ {k:'vibrance',g:'590 nm 色彩',lb:'自然饱和',min:-100,max:100,step:1,dec:0},
  {k:'exposure',g:'亮度',lb:'曝光',min:-8,max:8,step:0.05,dec:2,unit:' EV'},
  {k:'brightness',g:'亮度',lb:'中间调',min:-100,max:100,step:1,dec:0},
  {k:'black',g:'亮度',lb:'黑场',min:0,max:100,step:1,dec:0},
  {k:'highlights',g:'亮度',lb:'高光',min:0,max:100,step:1,dec:0},
  {k:'shadows',g:'亮度',lb:'阴影',min:0,max:100,step:1,dec:0},
  {k:'contrast',g:'亮度',lb:'对比度',min:-100,max:100,step:1,dec:0},
- {k:'mr',g:'白平衡',lb:'R',min:0.001,max:64,step:0.001,dec:3},
- {k:'mb',g:'白平衡',lb:'B',min:0.001,max:64,step:0.001,dec:3},
+ {k:'mr',g:'白平衡',lb:'R',min:0.0001,max:10000,step:0.000001,dec:5},
+ {k:'mb',g:'白平衡',lb:'B',min:0.0001,max:10000,step:0.000001,dec:5},
  {k:'swap_mode',g:'附加通道互换',lb:'模式',type:'sel',opts:[
    ['none','不互换'],['rb','R ↔ B'],['rg','R ↔ G'],['gb','G ↔ B'],
    ['rot','R→B→G→R'],['rot_rev','R→G→B→R']]},
  {k:'swap',g:'附加通道互换',lb:'强度',min:0,max:100,step:1,dec:0,unit:'%'},
  {k:'swap_hl',g:'附加通道互换',lb:'保护高光',min:0,max:100,step:1,dec:0,unit:'%'},
  {k:'sat',g:'色调',lb:'饱和度',min:0,max:200,step:1,dec:0,unit:'%'},
+ {k:'warm_sat',g:'色调',lb:'暖色饱和',min:-100,max:100,step:1,dec:0,unit:'%'},
+ {k:'cool_sat',g:'色调',lb:'冷色饱和',min:-100,max:100,step:1,dec:0,unit:'%'},
  {k:'sky_light',g:'色调',lb:'冷色明度',min:-100,max:100,step:1,dec:0},
  {k:'veg_light',g:'色调',lb:'暖色明度',min:-100,max:100,step:1,dec:0},
  {k:'denoise',g:'细节',lb:'降噪',min:0,max:100,step:1,dec:0},
  {k:'sharpen',g:'细节',lb:'锐化',min:0,max:150,step:1,dec:0},
  {k:'hotspot',g:'细节',lb:'热点补偿',min:0,max:100,step:1,dec:0},
 ];
-const DEF={color_mode:'bluegold',color_sep:60,gold:85,blue:85,vibrance:35,brightness:0,black:0,exposure:0,highlights:0,shadows:0,contrast:0,swap_mode:'none',
-  swap:0,swap_hl:0,sat:100,sky_light:0,veg_light:0,denoise:0,sharpen:0,hotspot:0};
+const DEF={color_mode:'reference590',color_sep:0,gold:0,blue:0,vibrance:0,brightness:0,black:0,exposure:0,highlights:0,shadows:0,contrast:0,swap_mode:'none',
+  swap:0,swap_hl:0,sat:100,warm_sat:0,cool_sat:0,sky_light:0,veg_light:0,denoise:0,sharpen:0,hotspot:0};
 const pv=Object.assign({},DEF,{mr:1,mb:1});
 
 let renderVersion=0;
@@ -623,13 +667,13 @@ function buildPanel(){
     const el=$('#s_'+p.k);
     if(!el) return;
     if(p.type==='sel'){
-      el.addEventListener('change',()=>{ pv[p.k]=el.value; if(p.k==='color_mode'&&el.value==='bluegold'){pv.swap_mode='none';pv.swap=0;syncAll();} schedule(); });
+      el.addEventListener('change',()=>{ pv[p.k]=el.value; if(p.k==='color_mode'){pv.swap_mode='none';pv.swap=0;Object.assign(pv,el.value==='bluegold'?{color_sep:60,gold:85,blue:85,vibrance:35}:{color_sep:0,gold:0,blue:0,vibrance:0});syncAll();} schedule(); });
     }else{
       el.addEventListener('input',()=>{ pv[p.k]=parseFloat(el.value); syncLabel(p); schedule(); });
       if(p.k==='mr'||p.k==='mb') $('#v_'+p.k).addEventListener('change',e=>{
         const v=Number(e.target.value);
         if(!Number.isFinite(v)||v<0.0001||v>10000){ syncLabel(p); return; }
-        pv[p.k]=v; el.value=v; schedule();
+        pv[p.k]=v; syncAll(); schedule();
       });
     }
   });
@@ -644,6 +688,10 @@ function syncLabel(p){
 function syncAll(){
   PARAMS.forEach(p=>{
     const el=$('#s_'+p.k); if(!el) return;
+    if(p.k==='mr'||p.k==='mb'){
+      const v=pv[p.k];el.min=Math.max(.0001,v*.5);el.max=Math.min(10000,v*1.5);el.step=Math.max(.0000001,(el.max-el.min)/2000);
+    }
+    if(['color_sep','gold','blue','vibrance'].includes(p.k)) el.min=pv.color_mode==='bluegold'?0:-100;
     el.value=pv[p.k];
     if(p.type!=='sel') syncLabel(p);
   });
@@ -705,13 +753,22 @@ function query(){
 
 function render(force){
   const d=cur===null?null:items[cur].data; if(!d) return;
-  const q = showRaw ? 'mr=1&mb=1' : query();
+  const q = showRaw ? 'mr=1&mb=1&color_mode=classic' : query();
   spinEl.classList.add('on');
   const version=++renderVersion;
   const tmp=new Image();
-  tmp.onload=()=>{ if(version!==renderVersion) return; imgEl.src=tmp.src; spinEl.classList.remove('on'); };
+  tmp.onload=()=>{ if(version!==renderVersion) return; imgEl.src=tmp.src; drawHistogram(tmp); spinEl.classList.remove('on'); };
   tmp.onerror=()=>{ if(version!==renderVersion) return; spinEl.classList.remove('on'); toast('渲染失败'); };
   tmp.src='/api/render?fid='+d.fid+'&'+q+'&t='+Date.now();
+}
+function drawHistogram(img){
+  const sample=document.createElement('canvas'); sample.width=256;sample.height=Math.max(1,Math.round(256*img.naturalHeight/img.naturalWidth));
+  const s=sample.getContext('2d',{willReadFrequently:true});s.drawImage(img,0,0,sample.width,sample.height);
+  const pixels=s.getImageData(0,0,sample.width,sample.height).data, bins=new Uint32Array(256);let dark=0,bright=0;
+  for(let i=0;i<pixels.length;i+=4){const y=Math.round(.2126*pixels[i]+.7152*pixels[i+1]+.0722*pixels[i+2]);bins[y]++;if(y<=5)dark++;if(y>=250)bright++;}
+  const c=$('#hist'),ctx=c.getContext('2d'),max=Math.max(1,...bins);ctx.clearRect(0,0,256,100);ctx.fillStyle='#c9d8dd';
+  for(let x=0;x<256;x++){const h=95*Math.log1p(bins[x])/Math.log1p(max);ctx.fillRect(x,100-h,1,h);}
+  const n=pixels.length/4;$('#histInfo').innerHTML='预览亮度直方图：左暗右亮（对数显示）<br>接近黑色 '+(100*dark/n).toFixed(1)+'% · 接近白色 '+(100*bright/n).toFixed(1)+'%<br>仅反映处理后预览，传感器饱和请看下方数据。';
 }
 function schedule(){ saveCurrent(); clearTimeout(timer); timer=setTimeout(()=>render(false),170); }
 
@@ -814,7 +871,7 @@ async function exportOne(i, mode=$('#exportMode').value){
   const d=items[i].data;
   const settings=items[i].settings||{...DEF,mr:d.mul.R,mb:d.mul.B};
   const q=new URLSearchParams(settings).toString();
-  const res=await fetch('/api/export?fid='+d.fid+'&'+q+'&mode='+encodeURIComponent(mode),{method:'POST'});
+  const res=await fetch('/api/export?fid='+d.fid+'&'+q+'&mode='+encodeURIComponent(mode)+'&outdir='+encodeURIComponent($('#exportDir').value.trim()),{method:'POST'});
   const j=await res.json();
   if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
   return j.path;
@@ -864,6 +921,13 @@ window.addEventListener('drop',e=>{
   [...e.dataTransfer.files].forEach(upload);
 });
 
+$('#exportDir').value=localStorage.getItem('irExportDir')||$('#outdir').textContent;
+$('#exportDir').addEventListener('change',()=>localStorage.setItem('irExportDir',$('#exportDir').value.trim()));
+$('#btnFolder').onclick=async()=>{
+  const b=$('#btnFolder');b.disabled=true;
+  try{const r=await fetch('/api/folder',{method:'POST'});const j=await r.json();if(!r.ok)throw new Error(j.error);if(j.path){$('#exportDir').value=j.path;localStorage.setItem('irExportDir',j.path);}}
+  catch(e){toast('选择文件夹失败：'+e.message,4500);}finally{b.disabled=false;}
+};
 buildPanel(); syncAll();
 </script>
 </body>
@@ -928,7 +992,8 @@ class Handler(BaseHTTPRequestHandler):
         mr = backend.positive((qs.get("mr") or ["1"])[0], "R")
         mb = backend.positive((qs.get("mb") or ["1"])[0], "B")
         p = parse_params(qs)
-        out = export_tiff(e["path"], mr, mb, p, e["scale"], e["name"], (qs.get("mode") or ["developed"])[0])
+        outdir = (qs.get('outdir') or [None])[0]
+        out = export_tiff(e["path"], mr, mb, p, e["scale"], e["name"], (qs.get("mode") or ["developed"])[0], outdir)
         self._json({"ok": True, "path": out})
 
     def _handle_probe(self, qs):
@@ -958,7 +1023,13 @@ class Handler(BaseHTTPRequestHandler):
         qs, path = self._qs()
         try:
             if path in ("/", "/index.html"):
-                self._send(200, PAGE.replace("__OUTDIR__", OUTDIR),
+                ui_file = os.path.join(HERE, "ui", "index.html")
+                if os.path.exists(ui_file):
+                    with open(ui_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                else:
+                    content = PAGE
+                self._send(200, content.replace("__OUTDIR__", html.escape(OUTDIR)),
                            "text/html; charset=utf-8")
                 return
             if path == "/api/render":
@@ -1020,6 +1091,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.rfile.read(n)
             if path == "/api/export":
                 self._handle_export(qs)
+                return
+            if path == "/api/folder":
+                helper = Path(HERE) / 'choose_export_folder.py'
+                result = subprocess.run([sys.executable, '-B', str(helper)],
+                                        capture_output=True, text=True, encoding='utf-8',
+                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                if result.returncode:
+                    raise ValueError('无法打开文件夹选择窗口，请直接输入路径')
+                selected = result.stdout.strip()
+                self._json({'path': validate_export_dir(selected) if selected else ''})
                 return
             self._json({"error": "not found"}, 404)
         except Exception as exc:

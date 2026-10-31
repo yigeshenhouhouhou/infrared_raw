@@ -14,3 +14,6 @@ android/signing/
 android/dist/*.apk
 android/dist/*.idsig
 android/dist/*.zip
+
+*.bak
+*.bak_*

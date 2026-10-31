@@ -41,25 +41,38 @@ cases += [{'color_mode':'classic'}, {'color_sep':100,'gold':100,'blue':100,'vibr
           {'color_sep':0,'gold':0,'blue':0,'vibrance':0}, {'color_mode':'classic','swap_mode':1,'swap':100}]
 maximum=0
 for case in cases:
-    d={**desktop.DEFAULTS,'mr':1.,'mb':1.,'swap_mode':0,**case}
+    d={**desktop.DEFAULTS,'color_mode':'bluegold','mr':1.,'mb':1.,'swap_mode':0,**case}
     values=[(1 if d[k]=='bluegold' else 0) if k=='color_mode' else d[k] for k in keys]
     actual=np.array([[float(x) for x in ln.split()] for ln in run('--pixels',*values).splitlines()])
     expected=[]
     for v in [0,.0001,.01,.05,.18,.5,1,2,8,100]:
         a=np.broadcast_to(np.array([v*d['mr'],v*.6,v*.2*d['mb']],np.float32),(3,3,3))
-        p={**desktop.DEFAULTS,**case,'swap_mode':desktop.SWAP_MODES[int(d['swap_mode'])]}
+        p={**desktop.DEFAULTS,'color_mode':'bluegold',**case,'swap_mode':desktop.SWAP_MODES[int(d['swap_mode'])]}
         b=desktop.process_array(desktop.tone_map(a,p),p)
         expected.append(b[1,1])
     error=float(np.abs(actual-np.array(expected)).max());maximum=max(maximum,error)
     assert error<4e-6,(case,error)
 report['checks'].append({'name':'native float pixel parity','cases':len(cases),'samples':len(cases)*10,'max_abs_error':maximum})
 
+# These alternative looks must leave a balanced neutral grey neutral. The
+# reference mixer has been adapted to this pipeline; this is not PP3 parity.
+for mode in (2,3,6):
+    values=[0,0,0,0,0,0,1,1,0,0,100,0,0,0,0,0,0,mode,60,85,85,35,0,100,50,0,100,0,0]
+    neutral=np.array([[float(x) for x in ln.split()] for ln in run('--neutral',*values).splitlines()])
+    assert np.isfinite(neutral).all() and np.ptp(neutral,axis=1).max()<2e-5,(mode,neutral)
+values[17]=6
+swapped=np.array([[float(x) for x in ln.split()] for ln in run('--pixels',*values).splitlines()])
+for i,v in enumerate([0,.0001,.01,.05,.18,.5,1,2,8,100]):
+    expected=desktop.tone_map(np.array([[[v*.2,v*.6,v]]],np.float32),{**desktop.DEFAULTS,'color_mode':'classic'})[0,0]
+    np.testing.assert_allclose(swapped[i],expected,atol=2e-6)
+report['checks'].append({'name':'alternative modes preserve neutral and linear red-blue swap','result':'passed'})
+
 fixture=ROOT/'runtime/ramp.dng';test_backend.make_dng(fixture)
 run('runtime/ramp.dng','runtime/ramp.ppm')
 with Image.open(ROOT/'runtime/ramp.ppm') as im:
     actual=np.asarray(im).astype(np.float32)/255
     lin=desktop.decode_linear(fixture,1,1,True)
-    expected=desktop.tone_map(lin*desktop.backend.auto_scale(lin),desktop.DEFAULTS)
+    expected=desktop.tone_map(lin*desktop.backend.auto_scale(lin),{**desktop.DEFAULTS,'color_mode':'bluegold'})
     assert im.size==(64,64)
     assert np.abs(actual-expected).max() <= 1.01/255
 report['checks'].append({'name':'synthetic DNG through LibRaw','dimensions':[64,64],'result':'passed'})
@@ -75,7 +88,7 @@ if raw.is_file():
         with Image.open(ROOT/'runtime'/name) as im:assert im.size==dims
         report['checks'].append({'name':'real Sony ARW '+(mode or 'preview'),'dimensions':list(dims),'metadata':meta})
 
-apk=ROOT/'dist/InfraredRAW-0.2.1-android8-arm64.apk'
+apk=ROOT/'dist/InfraredRAW-0.3.0-android8-arm64.apk'
 with zipfile.ZipFile(apk) as z:
     assert z.testzip() is None
     assert z.read('classes.dex').startswith(b'dex\n')

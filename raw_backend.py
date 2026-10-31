@@ -1,7 +1,7 @@
 """Scene-linear infrared development. Camera channels are creative false colours.
 
-No visible-light camera matrix is applied: a modified camera and a 590 nm filter
-invalidate that calibration. The developed false colours are assigned to sRGB.
+The optional visible-light camera matrix is only an experimental baseline for
+a modified camera and a 590 nm filter. False colours are assigned to sRGB.
 """
 from functools import lru_cache
 from pathlib import Path
@@ -77,6 +77,60 @@ def srgb_encode(a):
                     1.055 * np.power(a, 1 / 2.4) - 0.055).astype(np.float32)
 
 
+# Match the Android renderer's D65 camera matrix, Bradford adaptation and
+# ProPhoto mixer. This visible-light baseline is not an IR characterization.
+_XYZ50_TO_PROPHOTO = np.array([[1.3459433, -.2556075, -.0511118],
+    [-.5445989, 1.5081673, .0205351], [0, 0, 1.2118128]])
+_D65_TO_D50 = np.array([[1.0478112, .0228866, -.0501270],
+    [.0295424, .9904844, -.0170491], [-.0092345, .0150436, .7521316]])
+_PROPHOTO_TO_XYZ50 = np.array([[.7976749, .1351917, .0313534],
+    [.2880402, .7118741, .0000857], [0, 0, .8252100]])
+_XYZ65_TO_SRGB = np.array([[3.2404542, -1.5371385, -.4985314],
+    [-.9692660, 1.8760108, .0415560], [.0556434, -.2040259, 1.0572252]])
+_PROPHOTO_TO_SRGB = _XYZ65_TO_SRGB @ np.linalg.inv(_D65_TO_D50) @ _PROPHOTO_TO_XYZ50
+_SRGB_TO_PROPHOTO = np.linalg.inv(_PROPHOTO_TO_SRGB)
+# Adapted from anxix/rt_ir_presets, ir590-yellow-trees.pp3, CC BY-SA 4.0.
+_MIXER = np.array([[-.11, .05, 1.], [-.40, .83, .46], [.97, .24, -.46]])
+_MIXER = _MIXER / _MIXER.sum(axis=1, keepdims=True)
+
+
+@lru_cache(maxsize=16)
+def _camera_to_prophoto(path, mtime_ns, size):
+    import rawpy
+    with rawpy.imread(path) as raw:
+        cm = np.asarray(raw.rgb_xyz_matrix[:3, :3], dtype=np.float64)
+    try:
+        if not np.isfinite(cm).all() or abs(np.linalg.det(cm)) < 1e-9:
+            raise ValueError("no usable camera matrix")
+        response = cm @ np.array([.95047, 1, 1.08883])
+        matrix = _XYZ50_TO_PROPHOTO @ _D65_TO_D50 @ (np.linalg.inv(cm) * response)
+        return matrix.astype(np.float32)
+    except (ValueError, np.linalg.LinAlgError):
+        return _SRGB_TO_PROPHOTO.astype(np.float32)
+
+
+def camera_to_prophoto(path):
+    source = Path(path).resolve()
+    st = source.stat()
+    return _camera_to_prophoto(str(source), st.st_mtime_ns, st.st_size)
+
+
+def profile_color(a, mode, camera_matrix=None):
+    if mode == 'linear_rb':
+        return a[..., [2, 1, 0]]
+    if mode not in ('reference590', 'camera'):
+        return a
+    matrix = _SRGB_TO_PROPHOTO if camera_matrix is None else camera_matrix
+    transform = _PROPHOTO_TO_SRGB @ (_MIXER @ matrix if mode == 'reference590' else matrix)
+    out = np.asarray(a @ transform.astype(np.float32).T, np.float32)
+    y = np.maximum(out @ np.array([.2126, .7152, .0722], np.float32), 0)
+    t = np.ones_like(y)
+    for c in range(3):
+        t = np.minimum(t, np.where(out[..., c] < 0,
+                       y / np.maximum(y - out[..., c], 1e-12), 1))
+    return np.maximum(y[..., None] + t[..., None] * (out - y[..., None]), 0)
+
+
 def prepare_color(a, p):
     """Creative 590 nm mixing and chroma separation in scene-linear light.
 
@@ -105,13 +159,14 @@ def prepare_color(a, p):
     return np.where(neutral[..., None], a, out).astype(np.float32)
 
 
-def tone_map(lin, p):
+def tone_map(lin, p, camera_matrix=None):
     """Exposure/brightness/shadows/contrast, then hue-preserving shoulder.
 
     A logarithmic shoulder stays strictly increasing well above white. All colour
     channels share one gain, avoiding the old per-channel bleaching of skies.
     """
     a = np.maximum(np.asarray(lin, np.float32), 0) * np.float32(2 ** p["exposure"])
+    a = profile_color(a, p.get("color_mode", "classic"), camera_matrix)
     a = prepare_color(a, p)
     peak = a.max(axis=-1)
     v = peak.copy()

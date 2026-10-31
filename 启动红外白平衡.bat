@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title Infrared RAW Studio
+title Infrared RAW Studio - 590 nm 0.3
 set "TEMP=%~dp0runtime\tmp"
 set "TMP=%TEMP%"
 set "PIP_CACHE_DIR=%~dp0runtime\pip-cache"

@@ -16,13 +16,15 @@ async function main(){
     '--remote-debugging-port=9336','--user-data-dir='+path.join(runtime,'browser-profile'),
     '--disk-cache-dir='+path.join(runtime,'browser-cache'),'about:blank'],
     {env,windowsHide:true,stdio:'ignore'});
-  for(let i=0;i<100;i++){
-    try{ await fetch('http://127.0.0.1:8876/'); await fetch('http://127.0.0.1:9336/json/version'); break; }
+  let ready=false;
+  for(let i=0;i<50;i++){
+    try{ await fetch('http://127.0.0.1:8876/',{signal:AbortSignal.timeout(500)}); await fetch('http://127.0.0.1:9336/json/version',{signal:AbortSignal.timeout(500)}); ready=true;break; }
     catch { await delay(200); }
   }
+  if(!ready)throw new Error('Application or headless Chrome did not start');
   const target=await (await fetch('http://127.0.0.1:9336/json/new?about:blank',{method:'PUT'})).json();
   ws=new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((res,rej)=>{ws.onopen=res;ws.onerror=rej;});
+  await Promise.race([new Promise((res,rej)=>{ws.onopen=res;ws.onerror=rej;}),delay(5000).then(()=>{throw new Error('Browser connection timed out');})]);
   let id=0; const pending=new Map(), errors=[];
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
@@ -58,7 +60,8 @@ async function main(){
   await delay(800);
   await waitFor("!document.querySelector('#spin').classList.contains('on')");
   const info=await evaluate("({rows:document.querySelectorAll('#pgrid .row').length,dimensions:[imgEl.naturalWidth,imgEl.naturalHeight],exposure:pv.exposure,highlights:pv.highlights,wb:[pv.mr,pv.mb],meta:document.querySelector('#meta').textContent})");
-  if(info.rows!==22||info.exposure!==2||info.highlights!==75)throw new Error(JSON.stringify(info));
+  if(info.rows!==24||info.exposure!==2||info.highlights!==75)throw new Error(JSON.stringify(info));
+  if(!await evaluate("document.querySelector('#histInfo').textContent.includes('接近白色')")) throw new Error('Histogram missing');
   await evaluate("document.querySelector('#v_mr').value=80;document.querySelector('#v_mr').dispatchEvent(new Event('change'))");
   if(await evaluate('pv.mr')!==80)throw new Error('WB numeric input outside slider range failed');
   await evaluate("document.querySelector('#btnAuto').click()");

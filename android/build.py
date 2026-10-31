@@ -15,7 +15,7 @@ ROOT=Path(__file__).resolve().parent
 WORK=ROOT/'runtime'
 PROJECT=ROOT.parent
 # Single source of truth for the release name; keep AndroidManifest in step.
-VERSION='0.2.1'
+VERSION='0.3.0'
 TOOLS=Path(os.environ.get('IR_ANDROID_LEGACY_TOOLS',PROJECT.parent/'agent_work'/'sony-a7r2-k80'/'tools'))
 JAVA=Path(os.environ.get('IR_ANDROID_JAVA',TOOLS/'jadx'/'jre'/'bin'/'java.exe'))
 NDK=Path(os.environ.get('IR_ANDROID_NDK',TOOLS/'android-ndk-r19c'))
@@ -66,10 +66,14 @@ def main():
 
 开源组件：LibRaw 0.22.3（LGPL 2.1 或 CDDL 1.0，本包选择 LGPL 2.1）。
 JPEG 解码：libjpeg-turbo 3.2.0（IJG / BSD / zlib，详见许可文件）。
-应用源代码按 MIT 许可提供。构建源码与安装包一并提供。
+应用源代码及第三方内容的许可详见源码包。构建源码与安装包一并提供。
 项目源码包内含对应第三方源码、完整许可证与重建脚本。
+实验色彩矩阵改编自 anxix/rt_ir_presets（CC BY-SA 4.0）：
+https://github.com/anxix/rt_ir_presets ，已按行归一化，非完整预设复现。
+许可全文见应用资源 CC-BY-SA-4.0.txt。
 '''.replace('@VERSION@',VERSION)
     (assets/'NOTICE.txt').write_text(notice,'utf-8')
+    shutil.copyfile(PROJECT/'research'/'590nm'/'LICENSE.txt',assets/'CC-BY-SA-4.0.txt')
     for name in ['LICENSE.LGPL','LICENSE.CDDL','COPYRIGHT']:
         src=ROOT/'vendor'/'LibRaw-0.22.3'/name
         if src.exists():shutil.copyfile(src,assets/('LibRaw-'+name+'.txt'))

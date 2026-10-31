@@ -5,14 +5,14 @@ import raw_backend as backend
 
 
 def develop(a,**kw):
-    p={**gui.DEFAULTS,**kw}
+    p={**gui.DEFAULTS,'color_mode':'bluegold','color_sep':60,'gold':85,'blue':85,'vibrance':35,**kw}
     return gui.process_array(backend.tone_map(a,p),p)
 
 
 def test_blue_gold_has_directed_hues_and_more_chroma():
     # Camera-native warm/cool signatures, not semantic sky/foliage masks.
     a=np.array([[[.20,.12,.08]],[[.08,.14,.20]]],np.float32)
-    old=develop(a,color_mode='classic',swap_mode='rb',swap=100)
+    old=develop(a,color_mode='classic',swap_mode='rb',swap=100,color_sep=0,gold=0,blue=0,vibrance=0)
     new=develop(a)
     h,s,v=gui._rgb_to_hsv(new)
     old_s=gui._rgb_to_hsv(old)[1]
@@ -30,7 +30,7 @@ def test_neutral_ramp_is_not_painted_gold_or_blue():
 
 def test_linear_separation_preserves_luminance():
     a=np.random.default_rng(53).random((21,31,3)).astype(np.float32)*3
-    b=backend.prepare_color(a,{**gui.DEFAULTS,'color_sep':100})
+    b=backend.prepare_color(a,{**gui.DEFAULTS,'color_mode':'bluegold','color_sep':100})
     w=np.array([.2126,.7152,.0722])
     np.testing.assert_allclose(a@w,b@w,rtol=3e-6,atol=1e-7)
     assert b.min()>=0
@@ -59,3 +59,31 @@ def test_classic_permutation_preserves_hsv_saturation():
     p={**gui.DEFAULTS,'color_mode':'classic','swap_mode':'rb','swap':100}
     b=gui.process_array(a,p)
     np.testing.assert_allclose(gui._rgb_to_hsv(a)[1],gui._rgb_to_hsv(b)[1],atol=1e-7)
+
+
+def test_new_modes_keep_neutral_and_linear_swap():
+    ramp=np.repeat(np.geomspace(.00001,100,100)[None,:,None],3,-1).astype(np.float32)
+    for mode in ('reference590','camera','linear_rb'):
+        out=backend.tone_map(ramp,{**gui.DEFAULTS,'color_mode':mode})
+        np.testing.assert_allclose(out[...,0],out[...,1],atol=2e-5)
+        np.testing.assert_allclose(out[...,1],out[...,2],atol=2e-5)
+    a=np.array([[[.1,.2,2.]]],np.float32)
+    actual=backend.tone_map(a,{**gui.DEFAULTS,'color_mode':'linear_rb'})
+    expected=backend.tone_map(a[...,::-1],{**gui.DEFAULTS,'color_mode':'classic'})
+    np.testing.assert_allclose(actual,expected,atol=1e-7)
+
+
+def test_selective_saturation_and_color_controls():
+    colors=np.array([[[.8,.5,.25],[.25,.5,.8],[.5,.5,.5]]],np.float32)
+    p={**gui.DEFAULTS,'color_mode':'reference590'}
+    warm=gui.process_array(colors,{**p,'warm_sat':-100})
+    cool=gui.process_array(colors,{**p,'cool_sat':-100})
+    saturation=lambda x: gui._rgb_to_hsv(x)[1]
+    assert saturation(warm)[0,0]<saturation(colors)[0,0]*.3
+    assert saturation(cool)[0,1]<saturation(colors)[0,1]*.3
+    np.testing.assert_allclose(warm[0,1],colors[0,1],atol=1e-6)
+    np.testing.assert_allclose(cool[0,0],colors[0,0],atol=1e-6)
+    for name in ('color_sep','gold','blue'):
+        changed=gui.process_array(colors,{**p,name:100})
+        assert np.max(np.abs(changed-colors))>.02, name
+        np.testing.assert_allclose(changed[0,2],colors[0,2],atol=1e-6)

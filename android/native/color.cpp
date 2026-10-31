@@ -63,7 +63,13 @@ void profiledColor(float* a,int mode,const ColorContext& ctx,float blend,bool us
     {-.11f,.05f,1.f,-.40f,.83f,.46f,.97f,.24f,-.46f},
     {-.110f,.050f,1.f,-.400f,.830f,.460f,1.233f,.209f,-.480f},
     {-.09f,.13f,1.14f,-.13f,.80f,.25f,1.06f,.01f,-.13f}};
-  if(mode>=3 && mode<=5)transform(mixers[mode-3],a,a);
+  if(mode>=3 && mode<=5){
+    // The published mixer rows do not sum to one. Normalize each row so a
+    // picked neutral stays neutral with our different input transform.
+    Matrix m=mixers[mode-3];
+    for(int r=0;r<3;r++){float sum=m[3*r]+m[3*r+1]+m[3*r+2];for(int c=0;c<3;c++)m[3*r+c]/=sum;}
+    transform(m,a,a);
+  }
   transform(PROPHOTO_TO_SRGB,a,a);compressGamut(a);
 }
 float sigmoid(float x,float contrast){
