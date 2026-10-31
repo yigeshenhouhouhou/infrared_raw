@@ -730,7 +730,7 @@ button.btn.active {
         <div class="t">导入 RAW 图像</div>
         <div class="s">拖拽至此或点击浏览 (多选)</div>
       </div>
-      <input type="file" id="file" multiple hidden accept=".cr2,.cr3,.nef,.arw,.dng,.orf,.rw2,.pef,.raf">
+      <input type="file" id="file" multiple hidden>
       <div id="list" style="display:flex;flex-direction:column;gap:5px;"></div>
     </div>
 
@@ -1064,7 +1064,9 @@ async function upload(file){
     if(cur===null||cur===idx) select(idx);
   }catch(e){
     item.classList.add('error');
-    item.querySelector('.raw-sub').innerHTML=`<span style="color:var(--danger)">解析失败</span>`;
+    item.querySelector('.raw-sub').textContent='解析失败：'+(e.message||'未知错误');
+    item.querySelector('.raw-sub').title=e.message||'未知错误';
+    toast('导入失败：'+(e.message||'未知错误'), 5000);
   }
 }
 
@@ -1236,13 +1238,13 @@ $('#btnRaw').onclick=()=>toggleCompare();
 // 键盘快捷键
 window.addEventListener('keydown', e=>{
   if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT') return;
-  if(e.key==='\' || e.key==='|'){ if(!showRaw) toggleCompare(true); }
+  if(e.key==='\\' || e.key==='|'){ if(!showRaw) toggleCompare(true); }
   else if(e.key==='w' || e.key==='W'){ setPicking(!picking); }
   else if(e.key==='[' || e.key==='ArrowLeft'){ if(cur>0) select(cur-1); }
   else if(e.key===']' || e.key==='ArrowRight'){ if(cur<items.length-1) select(cur+1); }
 });
 window.addEventListener('keyup', e=>{
-  if(e.key==='\' || e.key==='|'){ if(showRaw) toggleCompare(false); }
+  if(e.key==='\\' || e.key==='|'){ if(showRaw) toggleCompare(false); }
 });
 
 $('#btnPrev').onclick=()=>{ if(cur>0) select(cur-1); };
