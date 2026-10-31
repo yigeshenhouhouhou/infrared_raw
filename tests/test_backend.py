@@ -153,6 +153,8 @@ def test_http_upload_preview_export(dng, tmp_path, monkeypatch):
         with urlopen(url+f'/api/render?fid={fid}&mr=4&mb=2&exposure=3') as r:
             assert r.headers['Content-Type']=='image/jpeg'
             assert Image.open(io.BytesIO(r.read())).size[0]>0
+        with urlopen(url+f'/api/render?fid={fid}&mr=4&mb=2&color_mode=pastel_red') as r:
+            assert Image.open(io.BytesIO(r.read())).size[0]>0
         with urlopen(Request(url+f'/api/export?fid={fid}&mr=4&mb=2&mode=linear',data=b'')) as r:
             assert Path(json.load(r)['path']).is_file()
         with urlopen(Request(url+f'/api/export?fid={fid}&mr=4&mb=2&mode=jpeg&black=35',data=b'')) as r:
@@ -160,6 +162,9 @@ def test_http_upload_preview_export(dng, tmp_path, monkeypatch):
             assert exported.suffix == '.jpg'
             with Image.open(exported) as im:
                 assert im.size == (128,128)
+        with urlopen(Request(url+f'/api/export?fid={fid}&mode=jpeg&color_mode=pastel_red',data=b'')) as r:
+            exported=Path(json.load(r)['path'])
+            assert json.loads(Path(str(exported)+'.json').read_text('utf-8'))['parameters']['color_mode']=='pastel_red'
         custom=tmp_path/'custom';custom.mkdir()
         from urllib.parse import quote
         with urlopen(Request(url+f'/api/export?fid={fid}&mode=jpeg&outdir='+quote(str(custom)),data=b'')) as r:

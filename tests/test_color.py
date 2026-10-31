@@ -87,3 +87,26 @@ def test_selective_saturation_and_color_controls():
         changed=gui.process_array(colors,{**p,name:100})
         assert np.max(np.abs(changed-colors))>.02, name
         np.testing.assert_allclose(changed[0,2],colors[0,2],atol=1e-6)
+
+
+@pytest.mark.parametrize('mode', ['pastel_red', 'red_foliage', 'orange_foliage', 'linear_brg'])
+def test_added_profiles_preserve_neutral_and_change_chromatic_pixels(mode):
+    values=np.geomspace(.0001,30,80).astype(np.float32)
+    neutral=np.repeat(values[None,:,None],3,-1)
+    p={**gui.DEFAULTS,'color_mode':mode}
+    rendered=backend.tone_map(neutral,p)
+    assert np.isfinite(rendered).all()
+    np.testing.assert_allclose(rendered[...,0],rendered[...,1],atol=3e-5)
+    np.testing.assert_allclose(rendered[...,1],rendered[...,2],atol=3e-5)
+    a=np.array([[[.04,.12,.3],[.25,.1,.03]]],np.float32)
+    assert np.max(np.abs(backend.tone_map(a,p)-backend.tone_map(a,{**p,'color_mode':'classic'})))>.02
+
+
+def test_cyclic_channel_profile_order():
+    a=np.array([[[.1,.2,.4]]],np.float32)
+    np.testing.assert_array_equal(backend.profile_color(a,'linear_brg'),a[..., [2,0,1]])
+
+
+def test_profile_names_are_accepted_by_server():
+    for mode in ('pastel_red','red_foliage','orange_foliage','linear_brg'):
+        assert gui.parse_params({'color_mode':[mode]})['color_mode']==mode

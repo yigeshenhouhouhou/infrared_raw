@@ -119,7 +119,7 @@ def parse_params(qs):
     cl("vibrance", -100.0, 100.0)
     cl("warm_sat", -100.0, 100.0)
     cl("cool_sat", -100.0, 100.0)
-    if p["color_mode"] not in ("classic", "bluegold", "reference590", "linear_rb", "camera"):
+    if p["color_mode"] not in backend.COLOR_MODES:
         p["color_mode"] = DEFAULTS["color_mode"]
     if p['color_mode'] == 'bluegold':
         for key in ('color_sep', 'gold', 'blue', 'vibrance'):
@@ -331,7 +331,7 @@ def render_jpeg(path, mr, mb, p, scale, max_side=1400, quality=86):
 
     lin = decode_linear(path, mr, mb, half_size=True)
     lin = _downscale(lin, max_side)
-    matrix = backend.camera_to_prophoto(path) if p['color_mode'] in ('reference590', 'camera') else None
+    matrix = backend.camera_to_prophoto(path) if p['color_mode'] in backend.CAMERA_COLOR_MODES else None
     a = tone_map(lin * np.float32(scale), p, matrix)
     a = process_array(a, p, blur_repeat=1)
 
@@ -359,7 +359,7 @@ def export_tiff(path, mr, mb, p, scale, name, mode="developed", outdir=None):
         tifffile.imwrite(out, lin, photometric="rgb", metadata=None,
                          description=json.dumps(recipe, ensure_ascii=False))
     else:
-        matrix = backend.camera_to_prophoto(path) if p['color_mode'] in ('reference590', 'camera') else None
+        matrix = backend.camera_to_prophoto(path) if p['color_mode'] in backend.CAMERA_COLOR_MODES else None
         a = tone_map(lin * np.float32(scale), p, matrix)
         del lin
         rep = max(1, int(round(max(a.shape[:2]) / 1400.0)))
@@ -606,7 +606,7 @@ const imgEl=$('#img'), stage=$('#stage'), selEl=$('#sel'), spinEl=$('#spin');
 const listEl=$('#list'), hintEl=$('#hint');
 
 const PARAMS=[
- {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['reference590','公开 590 预设矩阵（实验）'],['linear_rb','线性红蓝互换'],['camera','相机矩阵（实验）'],['classic','原始通道'],['bluegold','旧版蓝金']]},
+ {k:'color_mode',g:'590 nm 色彩',lb:'色彩方案',type:'sel',opts:[['reference590','公开 590 预设矩阵（实验）'],['pastel_red','粉红树叶 · 柔和 (590 nm)'],['red_foliage','红色树叶 · 鲜明 (590 nm)'],['orange_foliage','橙色树叶 · 暖调 (590 nm)'],['linear_brg','粉红假色 · 三通道循环'],['linear_rb','线性红蓝互换'],['camera','相机矩阵（实验）'],['classic','原始通道'],['bluegold','旧版蓝金']]},
  {k:'color_sep',g:'590 nm 色彩',lb:'色彩分离',min:-100,max:100,step:1,dec:0},
  {k:'gold',g:'590 nm 色彩',lb:'暖色色相',min:-100,max:100,step:1,dec:0},
  {k:'blue',g:'590 nm 色彩',lb:'冷色色相',min:-100,max:100,step:1,dec:0},

@@ -93,6 +93,21 @@ _SRGB_TO_PROPHOTO = np.linalg.inv(_PROPHOTO_TO_SRGB)
 _MIXER = np.array([[-.11, .05, 1.], [-.40, .83, .46], [.97, .24, -.46]])
 _MIXER = _MIXER / _MIXER.sum(axis=1, keepdims=True)
 
+# Channel-mixer stages adapted from anxix/rt_ir_presets (CC BY-SA 4.0).
+# Rows are normalized to keep an input neutral neutral. RawTherapee's WB,
+# tone curves and other modules are not reproduced by these matrices.
+_PROFILE_MIXERS = {
+    'reference590': _MIXER,
+    'pastel_red': np.array([[-11, 5, 100], [-9, 83, 3], [97, 1, -7]], dtype=float),
+    'red_foliage': np.array([[-9, 13, 114], [-13, 80, 25], [106, 1, -13]], dtype=float),
+    'orange_foliage': np.array([[-17, 10, 106], [-27, 85, 25], [93, 10, -47]], dtype=float),
+}
+for _name in ('pastel_red', 'red_foliage', 'orange_foliage'):
+    _PROFILE_MIXERS[_name] /= _PROFILE_MIXERS[_name].sum(axis=1, keepdims=True)
+
+CAMERA_COLOR_MODES = frozenset((*_PROFILE_MIXERS, 'camera'))
+COLOR_MODES = CAMERA_COLOR_MODES | frozenset(('classic', 'bluegold', 'linear_rb', 'linear_brg'))
+
 
 @lru_cache(maxsize=16)
 def _camera_to_prophoto(path, mtime_ns, size):
@@ -118,10 +133,12 @@ def camera_to_prophoto(path):
 def profile_color(a, mode, camera_matrix=None):
     if mode == 'linear_rb':
         return a[..., [2, 1, 0]]
-    if mode not in ('reference590', 'camera'):
+    if mode == 'linear_brg':
+        return a[..., [2, 0, 1]]
+    if mode not in CAMERA_COLOR_MODES:
         return a
     matrix = _SRGB_TO_PROPHOTO if camera_matrix is None else camera_matrix
-    transform = _PROPHOTO_TO_SRGB @ (_MIXER @ matrix if mode == 'reference590' else matrix)
+    transform = _PROPHOTO_TO_SRGB @ (_PROFILE_MIXERS[mode] @ matrix if mode in _PROFILE_MIXERS else matrix)
     out = np.asarray(a @ transform.astype(np.float32).T, np.float32)
     y = np.maximum(out @ np.array([.2126, .7152, .0722], np.float32), 0)
     t = np.ones_like(y)

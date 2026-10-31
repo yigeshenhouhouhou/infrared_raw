@@ -1,6 +1,27 @@
 {
-  "purpose": "Unmodified public reference profiles for research; not integrated into app.",
+  "purpose": "Unmodified public references; selected channel mixers are adapted and normalized in raw_backend.py, not full PP3 reproductions.",
   "profiles": [
+    {
+      "name": "ir590-pastel-red-trees.pp3",
+      "author": "anxix",
+      "license": "CC-BY-SA-4.0",
+      "url": "https://github.com/anxix/rt_ir_presets/blob/master/profiles/ir590-pastel-red-trees.pp3",
+      "git_blob_sha": "33e4fb950308915df184dbd26b3c549080686b4b"
+    },
+    {
+      "name": "ir590-red-trees.pp3",
+      "author": "anxix",
+      "license": "CC-BY-SA-4.0",
+      "url": "https://github.com/anxix/rt_ir_presets/blob/master/profiles/ir590-red-trees.pp3",
+      "git_blob_sha": "64d9dc3f2e2682bfb3d0c277484c6b09d5dba5aa"
+    },
+    {
+      "name": "ir590-orange-trees.pp3",
+      "author": "anxix",
+      "license": "CC-BY-SA-4.0",
+      "url": "https://github.com/anxix/rt_ir_presets/blob/master/profiles/ir590-orange-trees.pp3",
+      "git_blob_sha": "74808f07be425003cd47ce95de8e3af78b463726"
+    },
     {
       "name": "ir590-yellow-trees-blue-sky-dramatic.pp3",
       "author": "anxix",
