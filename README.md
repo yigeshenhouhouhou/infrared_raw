@@ -6,7 +6,7 @@
 
 为全波段改机和近红外摄影准备的本地 RAW 工作台，特别适合探索 590 nm 假色。
 
-[快速开始](#快速开始) · [色彩方案](#色彩方案) · [调色与导出](#调色与导出) · [原理和边界](#原理和边界) · [参考与许可](#参考与许可)
+[效果示例](#效果示例) · [快速开始](#快速开始) · [色彩方案](#色彩方案) · [调色与导出](#调色与导出) · [原理和边界](#原理和边界) · [参考与许可](#参考与许可)
 
 ![Windows](https://img.shields.io/badge/Windows-本地运行-2f81f7?style=flat-square)
 ![RAW](https://img.shields.io/badge/RAW-LibRaw%20%2B%20rawpy-d29922?style=flat-square)
@@ -26,6 +26,23 @@
 | 吸管框选中性区域，R/B 倍率可输入 `0.0001–10000` | 粉红、红色、橙色及经典通道互换方案 |
 | 浮点曝光与高光压缩，预览直方图和传感器饱和统计 | 冷暖色饱和度、色相、明暗和附加通道互换 |
 | 缩略预览，支持多张照片独立调整 | 导出 JPG、16 位成片 TIFF 或 32 位浮点底片 TIFF |
+
+## 效果示例
+
+同一张 590 nm RAW，使用相同的全图自动白平衡与自动曝光，仅切换色彩方案。实际效果会随取白位置、光线和拍摄器材变化。
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/examples/golden-forest.jpg" alt="金色森林示例"><br><b>金色森林</b><br>金色树叶与冷色环境</td>
+    <td width="50%"><img src="docs/examples/coral-shadows.jpg" alt="珊瑚粉影示例"><br><b>珊瑚粉影</b><br>珊瑚色植被与深色阴影</td>
+  </tr>
+  <tr>
+    <td><img src="docs/examples/dreamy-purple.jpg" alt="梦幻粉紫示例"><br><b>梦幻粉紫</b><br>粉紫与淡绿色调</td>
+    <td><img src="docs/examples/classic-swap.jpg" alt="经典红蓝互换示例"><br><b>经典红蓝互换</b><br>适合继续手动调整的基础效果</td>
+  </tr>
+</table>
+
+示例由作者提供的 `DSC09654.ARW` 生成，仅包含缩小后的 JPG，未上传 RAW。可用 [`scripts/generate_examples.py`](scripts/generate_examples.py) 从自己的 RAW 生成同样的对照。
 
 ## 快速开始
 
